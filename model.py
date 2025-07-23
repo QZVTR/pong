@@ -6,7 +6,7 @@ import random
 """
 class DQN(nn.Module):
     def __init__(self, inputDim, outputDim):
-        Initialize the DQN with input and output dimensions.
+        Initialise the DQN with input and output dimensions.
         super(DQN, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(inputDim, 64),
@@ -33,7 +33,7 @@ class DQN(nn.Module):
 
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim):
-        """Initialize the DQN with input and output dimensions."""
+        """Initialise the DQN with input and output dimensions."""
         super(DQN, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, 128),
