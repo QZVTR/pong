@@ -5,7 +5,7 @@ from agent import DQNAgent
 import random
 import pygame
 import time
-
+import os
 """
 TODO: 
 - Give reward for hitting the ball
@@ -14,14 +14,30 @@ TODO:
 - Refactor for steps
 """
 
-def train(modelPathPlayer=None, modelPathOpponent=None, startFrom=0):
+def train(modelPathPlayer=None, modelPathOpponent=None, startFrom=0, humanMode=False):
     env = PongEnv()
     playerAgent = DQNAgent(stateDim=5, actionDim=3)  # State: ball.x, ball.y, ball.speed[0](x), ball.speed[1](y), player.y Actions: 0=up, 1=down, 2=stay
-    opponentAgent = DQNAgent(stateDim=5, actionDim=3)  # For right paddle 
+    #opponentAgent = DQNAgent(stateDim=5, actionDim=3)  # For right paddle 
     clock = pygame.time.Clock()
-    episodes = 1000
+    episodes = 10000
     batchSize = 64
-    humanMode = False
+
+    if modelPathOpponent and modelPathPlayer:
+        try:
+            playerAgent.load(modelPathPlayer)
+            #opponentAgent.load(modelPathOpponent)
+            if startFrom > 10:
+                playerAgent.epsilon = 0.0
+                #opponentAgent.epsilon = 0.0
+            print(f"Models loaded from {modelPathPlayer} and {modelPathOpponent}")
+        except FileNotFoundError as e:
+            print(f"Error loading models: {e}")
+            env.close()
+            return
+    else:
+        print("No models provided, starting training from scratch.")
+
+    print("Pure self play as same agent controls both paddles.")
 
     for episode in range(startFrom, episodes):
         env.reset()
@@ -29,19 +45,6 @@ def train(modelPathPlayer=None, modelPathOpponent=None, startFrom=0):
         opponentState = env.getState(perspective='opponent')
         playerTotalReward = 0
         opponentTotalReward = 0
-
-        if modelPathOpponent and modelPathPlayer:
-            try:
-                playerAgent.load(modelPathPlayer)
-                opponentAgent.load(modelPathOpponent)
-                print(f"Models loaded from {modelPathPlayer} and {modelPathOpponent}")
-            except FileNotFoundError as e:
-                print(f"Error loading models: {e}")
-                env.close()
-                return
-        else:
-            print("No models provided, starting training from scratch.")
-        
 
         done = False
 
@@ -66,18 +69,18 @@ def train(modelPathPlayer=None, modelPathOpponent=None, startFrom=0):
                 playerAction = playerAgent.act(playerState)
 
             # Opponent action (self-play or random in human mode)
-            opponentAction = opponentAgent.act(opponentState) 
+            opponentAction = playerAgent.act(opponentState)  #opentAgent.act(opponentState)
 
             playerNextState, opponentNextState, playerReward, opponentReward, done = env.step(playerAction, opponentAction)
             playerAgent.replayBuffer.push(playerState, playerAction, playerReward, playerNextState, done)
-            opponentAgent.replayBuffer.push(opponentState, opponentAction, opponentReward, opponentNextState, done)
+            playerAgent.replayBuffer.push(opponentState, opponentAction, opponentReward, opponentNextState, done) # oppenentAgent.replayBufffer
             playerState = playerNextState
             opponentState = opponentNextState
             playerTotalReward += playerReward
             opponentTotalReward += opponentReward
             playerAgent.train(batchSize)
             #print("Player trained")
-            opponentAgent.train(batchSize)
+            playerAgent.train(batchSize) # opponentAgent.train(batchSize)
             #print("Opponent trained")
             # Render and control frame rate
             env.render(episode=episode + 1)
@@ -87,23 +90,26 @@ def train(modelPathPlayer=None, modelPathOpponent=None, startFrom=0):
                 #playerAgent.updateTargetModel()
                 #opponentAgent.updateTargetModel()
                 print(f"Episode {episode + 1}, Player Reward: {playerTotalReward}, Opponent Reward: {opponentTotalReward}, "
-                      f"Player Epsilon: {playerAgent.epsilon:.2f}, Opponent Epsilon: {opponentAgent.epsilon:.2f}")
+                      f"Player Epsilon: {playerAgent.epsilon:.2f}, Opponent Epsilon: {playerAgent.epsilon:.2f}") # opponentAgent.epsilon:.2f}")
                 break
 
         # Save model periodically
-        if episode % 100 == 0:
-            playerAgent.save(f"pong_model_{episode}_v3.pth")
-            opponentAgent.save(f"pong_opponent_model_{episode}_v3.pth")
+        if episode % 10 == 0:
+            playerAgent.save(f"models/v3/pong_model_{episode}_v3.pth")
+            #opponentAgent.save(f"models/v2/pong_opponent_model_{episode}_v2.pth")
+            # remove previous model 
+            #if episode > 10: 
+            #    os.remove(f"models/v3/pong_model_{episode - 5}_v3.pth")
 
-def test(model_path_player="pong_model_100.pth", model_path_opponent="pong_opponent_model_100.pth"):
+def test(modelPathPlayer="pong_model_100.pth", modelPathOpponent="pong_opponent_model_100.pth", humanMode=False):
     env = PongEnv()
     playerAgent = DQNAgent(stateDim=5, actionDim=3)  # Actions: 0=up, 1=down, 2=stay
     opponentAgent = DQNAgent(stateDim=5, actionDim=3)  # For right paddle 
 
     try:
-        playerAgent.load(model_path_player)
-        opponentAgent.load(model_path_opponent)
-        print(f"Models loaded from {model_path_player} and {model_path_opponent}")
+        playerAgent.load(modelPathPlayer)
+        opponentAgent.load(modelPathOpponent)
+        print(f"Models loaded from {modelPathPlayer} and {modelPathOpponent}")
     except FileNotFoundError as e:
         print(f"Error loading models: {e}")
         env.close()
@@ -114,9 +120,9 @@ def test(model_path_player="pong_model_100.pth", model_path_opponent="pong_oppon
     opponentAgent.epsilon = 0.0
 
     clock = pygame.time.Clock()
-    episodes = 1000  # Number of test episodes
-    humanMode = False
+    episodes = 10  # Number of test episodes
     font = pygame.font.Font(None, 74)
+    playerScore, oppScore = 0, 0
 
     for episode in range(episodes):
         env.reset()  # Reset entire environment (ball, paddles, scores)
@@ -175,19 +181,22 @@ def test(model_path_player="pong_model_100.pth", model_path_opponent="pong_oppon
             opponentTotalReward += opponent_reward
 
             # Render and control frame rate
-            env.render()
+            env.render(episode)
             clock.tick(60)
 
             if done:
                 print(f"Test Episode {episode + 1}, Player Score: {env.playerScore}, Opponent Score: {env.opponentScore}")
+                playerScore += 1 if env.playerScore > env.opponentScore else 0
+                oppScore += 1 if env.opponentScore > env.playerScore else 0
+                print(f"Score: {playerScore} - {oppScore}")
                 break
 
 
 
         # Display game over screen and wait for user input
-        env.render()  # Render final state
-        game_over_text = font.render("Game Over! Press SPACE to continue", False, env.WHITE)
-        env.screen.blit(game_over_text, (env.WIDTH // 2 - game_over_text.get_width() // 2, env.HEIGHT // 2))
+        env.render(episode=episode + 1)  # Render final state
+        gameOverText = font.render("Game Over! Press SPACE to continue", False, env.WHITE)
+        env.screen.blit(gameOverText, (env.WIDTH // 2 - gameOverText.get_width() // 2, env.HEIGHT // 2))
         pygame.display.flip()
 
         # Wait for SPACE key or QUIT event
@@ -208,5 +217,7 @@ def test(model_path_player="pong_model_100.pth", model_path_opponent="pong_oppon
 
 
 if __name__ == "__main__":
-    train(modelPathPlayer="./models/v2/pong_model_400_v2.pth", modelPathOpponent="./models/v2/pong_opponent_model_400_v2.pth", startFrom=400)
-    #test(model_path_player="pong_model_100.pth", model_path_opponent="pong_opponent_model_100.pth")
+    #train()
+    #train(modelPathPlayer="./models/v2/pong_model_600_v2.pth", modelPathOpponent="./models/v2/pong_opponent_model_600_v2.pth", startFrom=601)
+    print("Testing 1000 episodes V2 model vs 30 episodes V3 model")
+    test(modelPathPlayer="./models/v2/pong_model_1000_v2.pth", modelPathOpponent="./models/v3/pong_model_90_v3.pth", humanMode=False)

@@ -122,12 +122,12 @@ class PongEnv:
         """Reset ball to center with random direction."""
         self.resetPaddles()
         self.ball.center = (self.WIDTH // 2, self.HEIGHT // 2)
-        if self.playerScore == 0 and self.opponentScore == 0:
+        #if self.playerScore == 0 and self.opponentScore == 0:
             # Horizontal trajectory at game start
             #print("Start ball with horizontal trajectory")
-            self.ballSpeed = [self.BALLSPEED * random.choice((1, -1)), 0]
-        else:
-            self.ballSpeed = [self.BALLSPEED * random.choice((1, -1)), self.BALLSPEED * random.choice((1, -1))]
+        #    self.ballSpeed = [self.BALLSPEED * random.choice((1, -1)), 0]
+        #else:
+        self.ballSpeed = [self.BALLSPEED * random.choice((1, -1)), self.BALLSPEED * random.choice((1, -1))]
 
     def getState(self, perspective='player'):
         """Return normalized game state for the agent."""
